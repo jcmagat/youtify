@@ -67,5 +67,48 @@ def callback():
   
   return redirect("/login")
 
+# Playlists endpoint
+@app.route("/playlists")
+def get_playlists():
+  if "access_token" not in session:
+    return redirect("/login")
+
+  if datetime.datetime.now().timestamp() > session["expires_at"]:
+    return redirect("/refresh-token")
+
+  headers = {
+    "Authorization": f"Bearer {session["access_token"]}"
+  }
+
+  response = requests.get(API_BASE_URL + "me/playlists", headers=headers)
+  playlists = response.json()
+
+  return jsonify(playlists)
+
+# Refresh token endpoint
+@app.route("/refresh-token")
+def refresh_token():
+  if "refresh_token" not in session:
+    return redirect("/login")
+  
+  if datetime.datetime.now().timestamp() > session["expires_at"]:
+    print("getting ref token")
+    req_body = {
+      "grant_type": "refresh_token",
+      "refresh_token": session["refresh_token"],
+      "client_id": CLIENT_ID,
+      "client_secret": CLIENT_SECRET
+    }
+  
+    response = requests.post(TOKEN_URL, data=req_body)
+    
+    new_token_info = response.json()
+    print(new_token_info)
+
+    session["access_token"] = new_token_info["access_token"]
+    session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
+
+  return redirect("/playlists")
+
 if __name__ == "__main__":
   app.run(host="0.0.0.0", debug=True, port=8080)
