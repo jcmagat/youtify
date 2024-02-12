@@ -8,7 +8,7 @@ import datetime
 load_dotenv(".env")
 
 app = Flask(__name__)
-app.secret_key: str = os.getenv("APP_SECRET_KEY")
+app.secret_key = os.getenv("APP_SECRET_KEY")
 
 # Spotify Web API info
 CLIENT_ID: str = os.getenv("CLIENT_ID")
@@ -109,6 +109,35 @@ def refresh_token():
     session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
   return redirect("/playlists")
+
+# Playlist tracks endpoint
+@app.route("/playlists/<playlist_id>/tracks")
+def get_playlist_tracks(playlist_id):
+  if "access_token" not in session:
+    return redirect("/login")
+  
+  if datetime.datetime.now().timestamp() > session["expires_at"]:
+    return redirect("/refresh-token")
+  
+  headers = {
+    "Authorization": f"Bearer {session["access_token"]}"
+  }
+
+  response = requests.get(API_BASE_URL + f"playlists/{playlist_id}/tracks", headers=headers)
+  tracks = response.json()
+
+  result = []
+
+  for item in tracks["items"]:
+    track = item["track"]
+    artists = []
+    
+    for artist in track["artists"]:
+      artists.append(artist["name"])
+
+    result.append(f"{", ".join(artists)} - {track["name"]}")
+
+  return jsonify(result)
 
 if __name__ == "__main__":
   app.run(host="0.0.0.0", debug=True, port=8080)
