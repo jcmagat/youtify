@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from flask import Blueprint, redirect, request, jsonify, session
+from flask import Blueprint, redirect, request, jsonify, session, url_for
 import os
 import requests
 import urllib.parse
@@ -58,18 +58,18 @@ def callback():
     session["refresh_token"] = token_info["refresh_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + token_info["expires_in"]
 
-    return redirect("/spotify/playlists")
+    return redirect(url_for("spotify.get_playlists"))
   
-  return redirect("/spotify/login")
+  return redirect(url_for("spotify.login"))
 
 # Playlists endpoint
 @spotify_bp.route("/playlists")
 def get_playlists():
   if "access_token" not in session:
-    return redirect("/spotify/login")
+    return redirect(url_for("spotify.login"))
 
   if datetime.datetime.now().timestamp() > session["expires_at"]:
-    return redirect("/spotify/refresh-token")
+    return redirect(url_for("spotify.refresh_token"))
 
   headers = {
     "Authorization": f"Bearer {session["access_token"]}"
@@ -84,7 +84,7 @@ def get_playlists():
 @spotify_bp.route("/refresh-token")
 def refresh_token():
   if "refresh_token" not in session:
-    return redirect("/spotify/login")
+    return redirect(url_for("spotify.login"))
   
   if datetime.datetime.now().timestamp() > session["expires_at"]:
     req_body = {
@@ -102,16 +102,16 @@ def refresh_token():
     session["access_token"] = new_token_info["access_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
-  return redirect("/spotify/playlists")
+  return redirect(url_for("spotify.get_playlists"))
 
 # Playlist tracks endpoint
 @spotify_bp.route("/playlists/<playlist_id>/tracks")
 def get_playlist_tracks(playlist_id):
   if "access_token" not in session:
-    return redirect("/spotify/login")
+    return redirect(url_for("spotify.login"))
   
   if datetime.datetime.now().timestamp() > session["expires_at"]:
-    return redirect("/spotify/refresh-token")
+    return redirect(url_for("spotify.refresh_token"))
   
   headers = {
     "Authorization": f"Bearer {session["access_token"]}"
