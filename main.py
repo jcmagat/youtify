@@ -6,4 +6,4 @@ def index():
   return "Welcome to YouTify <a href='/spotify/login'>Login with Spotify</a>"
 
 if __name__ == "__main__":
-  app.run(host="0.0.0.0", debug=True, port=8080)
+  app.run(debug=True, port=8080, ssl_context=(".cert/cert.pem", ".cert/key.pem"))

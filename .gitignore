@@ -1,4 +1,7 @@
 .env
 .venv
+.cert
 
 __pycache__
+
+client_secrets.json
