@@ -7,8 +7,8 @@ import os
 youtube_bp = Blueprint("youtube", __name__)
 
 # YouTube API info
-API_SERVICE_NAME: str = os.getenv("YOUTUBE_API_SERVICE_NAME")
-API_VERSION: str = os.getenv("YOUTUBE_API_VERSION")
+API_SERVICE_NAME = "youtube"
+API_VERSION = "v3"
 
 # Home endpoint
 @youtube_bp.route("/")
