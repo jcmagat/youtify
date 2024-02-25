@@ -1,5 +1,5 @@
 from flask import Blueprint, redirect, jsonify, session, url_for
-import os
+from app.services import SpotifyService
 import requests
 import datetime
 
@@ -34,23 +34,12 @@ def get_playlist_tracks(playlist_id):
   
   if datetime.datetime.now().timestamp() > session["expires_at"]:
     return redirect(url_for("spotify.refresh_token"))
-  
-  headers = {
-    "Authorization": f"Bearer {session["access_token"]}"
+
+  tracks = SpotifyService.get_playlist_tracks(playlist_id)
+
+  res = {
+    "playlist_id": playlist_id,
+    "tracks": tracks
   }
 
-  response = requests.get(API_BASE_URL + f"playlists/{playlist_id}/tracks", headers=headers)
-  tracks = response.json()
-
-  result = []
-
-  for item in tracks["items"]:
-    track = item["track"]
-    artists = []
-    
-    for artist in track["artists"]:
-      artists.append(artist["name"])
-
-    result.append(f"{", ".join(artists)} - {track["name"]}")
-
-  return jsonify(result)
+  return jsonify(res)
