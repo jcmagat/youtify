@@ -12,7 +12,8 @@ WEB_APP_URL: str = os.getenv("WEB_APP_URL")
 
 # YouTube API info
 YOUTUBE_CLIENT_SECRETS_FILE = "app/config/client_secrets.json"
-YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
+YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly", 
+                  "https://www.googleapis.com/auth/youtube.force-ssl"]
 YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI")
 
 flow = Flow.from_client_secrets_file(
@@ -37,6 +38,8 @@ def status():
       "is_logged_in_spotify": False
     }
 
+  # TODO: check for expiry
+
   if "credentials" in session:
     res["is_logged_in_youtube"] = True
 
@@ -45,13 +48,15 @@ def status():
 
   return res
 
-# Login endpoint
+# ==================== YOUTUBE ENDPOINTS ====================
+
+# YouTube login endpoint
 @oauth_bp.route("/youtube/login")
 def youtube_login():
   auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
   return redirect(auth_url)
 
-# Callback endpoint
+# YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
 def youtube_callback():
   flow.fetch_token(authorization_response=request.url)
@@ -70,7 +75,9 @@ def youtube_callback():
   # TODO: redirect to WEB_APP_URL
   return redirect(url_for("oauth.status"))
 
-# Login endpoint
+# ==================== SPOTIFY ENDPOINTS ====================
+
+# Spotify login endpoint
 @oauth_bp.route("/spotify/login")
 def spotify_login():
   scope = "user-read-private user-read-email playlist-read-private"
@@ -84,7 +91,7 @@ def spotify_login():
   auth_url = f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}"
   return redirect(auth_url)
 
-# Callback endpoint
+# Spotify callback endpoint
 @oauth_bp.route("/spotify/callback")
 def spotify_callback():
   if "error" in request.args:
@@ -113,7 +120,7 @@ def spotify_callback():
   
   return redirect(url_for("oauth.spotify_login"))
 
-# Refresh token endpoint
+# Spotify refresh token endpoint
 @oauth_bp.route("/spotify/refresh-token")
 def spotify_refresh_token():
   if "refresh_token" not in session:
