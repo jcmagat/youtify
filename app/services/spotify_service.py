@@ -25,6 +25,37 @@ class SpotifyService:
       playlists["playlists"].append(playlist)
 
     return playlists
+  
+  @staticmethod
+  def get_playlist(id):
+    headers = {
+      "Authorization": f"Bearer {session["access_token"]}"
+    }
+
+    response = requests.get(API_BASE_URL + f"playlists/{id}", headers=headers).json()
+
+    tracks = []
+    for item in response["tracks"]["items"]:
+      artists = []
+      for artist in item["track"]["artists"]:
+        artists.append(artist["name"])
+
+      track = {
+       "name": item["track"]["name"],
+       "artists": ", ".join(artists)
+      }
+      
+      tracks.append(track)
+    
+    playlist = {
+      "id": response["id"],
+      "name": response["name"],
+      "description": response["description"],
+      "image": response["images"][0]["url"],
+      "tracks": tracks
+    }
+
+    return playlist
 
   @staticmethod
   def get_playlist_tracks(playlist_id):
