@@ -9,9 +9,6 @@ API_VERSION = "v3"
 class YouTubeService:
   @staticmethod
   def get_playlists():
-    if "credentials" not in session:
-        return redirect(url_for("youtube.login"))
-
     credentials = Credentials.from_authorized_user_info(session["credentials"])
 
     # YouTube API client
@@ -19,8 +16,30 @@ class YouTubeService:
 
     # Fetch authenticated user's playlists
     playlists = youtube.playlists().list(
-        part="snippet,contentDetails,status",
-        mine=True
+      part="snippet,contentDetails,status",
+      mine=True
     ).execute()
 
     return playlists
+  
+  @staticmethod
+  def create_playlist(name, description):
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+
+    # YouTube API client
+    youtube = build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+
+    playlist = youtube.playlists().insert(
+      part="snippet,status",
+      body={
+        "snippet": {
+          "title": name,
+          "description": description
+        },
+        "status": {
+          "privacyStatus": "private"
+        }
+      }
+    ).execute()
+
+    return playlist

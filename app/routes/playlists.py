@@ -39,19 +39,46 @@ def get_spotify_playlist(playlist_id):
 # Get all YouTube playlists
 @playlists_bp.route("/youtube")
 def get_youtube_playlists():
+    if "credentials" not in session:
+      return redirect(url_for("youtube.login"))
+    
     playlists = YouTubeService.get_playlists()
 
     return jsonify(playlists)
 
+# Create a YouTube playlist
+@playlists_bp.route("/youtube/create", methods=["POST"])
+def create_youtube_playlist():
+  if "credentials" not in session:
+    return redirect(url_for("youtube.login"))
+  
+  data = request.json
+  
+  playlist = YouTubeService.create_playlist(data["name"], data["description"])
+
+  return jsonify(playlist)
+
 # ==================== SHARED ENDPOINTS ====================
 
-# TODO: Copy playlists
 @playlists_bp.route("/copy", methods=["POST"])
 def copy_playlists():
-    # Get spotify playlists ids
-    # Get spotify playlist tracks, other info
-    # Create youtube playlist
-    # Search for tracks
-    # Add to playlist
+  # Get spotify playlists ids
+  data = request.json
+  if "playlist_ids" not in data:
+    return jsonify({"error": "Playlist IDs not provided"}), 400
 
-    return jsonify({})
+  # Get spotify playlist tracks, other info
+  spotify_playlists = []
+  for id in data["playlist_ids"]:
+    spotify_playlists.append(SpotifyService.get_playlist(id))
+
+  # Create youtube playlist
+  youtube_playlist = YouTubeService.create_playlist(data["name"], data["description"])
+
+  # Search for tracks
+
+
+  # Add to playlist
+  
+
+  return jsonify({})
