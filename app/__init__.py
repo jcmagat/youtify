@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("APP_SECRET_KEY")
 
 # CORS config
-CORS(app)
+CORS(app, supports_credentials=True)
 
 # Flask-Session config
 app.config["SESSION_TYPE"] = "redis"

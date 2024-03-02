@@ -72,8 +72,7 @@ def youtube_callback():
     "scopes": credentials.scopes
   }
   
-  # TODO: redirect to WEB_APP_URL
-  return redirect(url_for("oauth.status"))
+  return redirect(os.getenv("WEB_APP_URL"))
 
 # ==================== SPOTIFY ENDPOINTS ====================
 
@@ -86,15 +85,17 @@ def spotify_login():
     "response_type": "code",
     "scope": scope,
     "redirect_uri": SPOTIFY_REDIRECT_URI,
-    "show_dialog": True #remove after testing
+    "show_dialog": True # TODO: remove after testing
   }
   auth_url = f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}"
+
   return redirect(auth_url)
 
 # Spotify callback endpoint
 @oauth_bp.route("/spotify/callback")
 def spotify_callback():
   if "error" in request.args:
+    # TODO: redirect to web app url with an error
     return jsonify({
       "error": request.args["error"]
     })
@@ -116,7 +117,7 @@ def spotify_callback():
     session["refresh_token"] = token_info["refresh_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + token_info["expires_in"]
 
-    return redirect(url_for("oauth.status"))
+    return redirect(os.getenv("WEB_APP_URL"))
   
   return redirect(url_for("oauth.spotify_login"))
 
@@ -137,9 +138,8 @@ def spotify_refresh_token():
     response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
     
     new_token_info = response.json()
-    print(new_token_info)
 
     session["access_token"] = new_token_info["access_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
-  return redirect(url_for("oauth.status"))
+  return redirect(os.getenv("WEB_APP_URL"))
