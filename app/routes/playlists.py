@@ -8,7 +8,7 @@ playlists_bp = Blueprint("playlists", __name__)
 
 # ==================== SPOTIFY ENDPOINTS ====================
 
-# Get all Spotify playlists
+# Get all Spotify playlists + tracks
 @playlists_bp.route("/spotify")
 def get_spotify_playlists():
   if "access_token" not in session:
@@ -18,25 +18,18 @@ def get_spotify_playlists():
     return redirect(url_for("oauth.spotify_refresh_token"))
   
   playlists = SpotifyService.get_playlists()
+  
+  for playlist in playlists["playlists"]:
+    tracks = SpotifyService.get_playlist_tracks(playlist["id"])
+    playlist["tracks"] = tracks
 
   return jsonify(playlists)
 
-# Get a single Spotify playlist
-@playlists_bp.route("/spotify/<playlist_id>")
-def get_spotify_playlist(playlist_id):
-  if "access_token" not in session:
-    return redirect(url_for("oauth.spotify_login"))
-
-  if datetime.datetime.now().timestamp() > session["expires_at"]:
-    return redirect(url_for("oauth.spotify_refresh_token"))
-  
-  playlist = SpotifyService.get_playlist(playlist_id)
-
-  return jsonify(playlist)
+# TODO: CREATE SPOTIFY PLAYLISTS FROM A LIST OF PLAYLISTS
 
 # ==================== YOUTUBE ENDPOINTS ====================
 
-# Get all YouTube playlists
+# Get all YouTube playlists + tracks
 @playlists_bp.route("/youtube")
 def get_youtube_playlists():
     if "credentials" not in session:
@@ -46,6 +39,7 @@ def get_youtube_playlists():
 
     return jsonify(playlists)
 
+# TODO: CREATE YOUTUBE PLAYLISTS FROM A LIST OF PLAYLISTS
 # Create a YouTube playlist
 @playlists_bp.route("/youtube/create", methods=["POST"])
 def create_youtube_playlist():
@@ -57,28 +51,3 @@ def create_youtube_playlist():
   playlist = YouTubeService.create_playlist(data["name"], data["description"])
 
   return jsonify(playlist)
-
-# ==================== SHARED ENDPOINTS ====================
-
-@playlists_bp.route("/copy", methods=["POST"])
-def copy_playlists():
-  # Get spotify playlists ids
-  data = request.json
-  if "playlist_ids" not in data:
-    return jsonify({"error": "Playlist IDs not provided"}), 400
-
-  # Get spotify playlist tracks, other info
-  spotify_playlists = []
-  for id in data["playlist_ids"]:
-    spotify_playlists.append(SpotifyService.get_playlist(id))
-
-  # Create youtube playlist
-  youtube_playlist = YouTubeService.create_playlist(data["name"], data["description"])
-
-  # Search for tracks
-
-
-  # Add to playlist
-  
-
-  return jsonify({})
