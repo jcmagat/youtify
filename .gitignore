@@ -5,4 +5,4 @@
 __pycache__
 
 client_secrets.json
-timing.log
+*.log

@@ -1,17 +1,22 @@
-from flask import redirect, session, url_for
-import requests
+from flask import session
+import aiohttp
 
 API_BASE_URL = "https://api.spotify.com/v1/"
+
+async def fetch_data(url, headers=None):
+  async with aiohttp.ClientSession() as session:
+    async with session.get(url, headers=headers) as response:
+        return await response.json()
 
 class SpotifyService:
   # Get all playlists
   @staticmethod
-  def get_playlists():
+  async def get_playlists():
     headers = {
       "Authorization": f"Bearer {session["access_token"]}"
     }
 
-    response = requests.get(API_BASE_URL + "me/playlists", headers=headers).json()
+    response = await fetch_data(f"{API_BASE_URL}me/playlists", headers=headers)
 
     playlists = { "playlists" : [] }
 
@@ -29,12 +34,12 @@ class SpotifyService:
 
   # Get a playlist's tracks
   @staticmethod
-  def get_playlist_tracks(playlist_id):
+  async def get_playlist_tracks(playlist_id):
     headers = {
       "Authorization": f"Bearer {session["access_token"]}"
     }
 
-    response = requests.get(API_BASE_URL + f"playlists/{playlist_id}/tracks", headers=headers).json()
+    response = await fetch_data(f"{API_BASE_URL}playlists/{playlist_id}/tracks", headers=headers)
     
     tracks = []
     

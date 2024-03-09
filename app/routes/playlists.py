@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, redirect, session, url_for, request
 from app.services import SpotifyService
 from app.services import YouTubeService
 import datetime
+import asyncio
 
 # Create /playlists blueprint
 playlists_bp = Blueprint("playlists", __name__)
@@ -10,7 +11,7 @@ playlists_bp = Blueprint("playlists", __name__)
 
 # Get all Spotify playlists + tracks
 @playlists_bp.route("/spotify")
-def get_spotify_playlists():
+async def get_spotify_playlists():
   if "access_token" not in session:
     return jsonify({ "error": "Not authorized"}), 401
 
@@ -18,11 +19,15 @@ def get_spotify_playlists():
     session["redirect_origin_url"] = url_for("playlists.get_spotify_playlists")
     return redirect(url_for("oauth.spotify_refresh_token"))
   
-  playlists = SpotifyService.get_playlists()
+  playlists = await SpotifyService.get_playlists()
   
-  for playlist in playlists["playlists"]:
-    tracks = SpotifyService.get_playlist_tracks(playlist["id"])
-    playlist["tracks"] = tracks
+  # Asynchronous calls to Spotify API
+  tasks = [SpotifyService.get_playlist_tracks(playlist["id"]) for playlist in playlists["playlists"]]
+  results = await asyncio.gather(*tasks)
+
+  # Map resulting tracks to corresponding playlist
+  for i, playlist in enumerate(playlists["playlists"]):
+    playlist["tracks"] = results[i]
 
   return jsonify(playlists)
 
