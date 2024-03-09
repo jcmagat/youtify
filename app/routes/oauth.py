@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, request, session, url_for, jsonify
+from flask import Blueprint, redirect, request, session, jsonify, render_template_string
 from google_auth_oauthlib.flow import Flow
 import os
 import requests
@@ -54,7 +54,7 @@ def status():
 @oauth_bp.route("/youtube/login")
 def youtube_login():
   auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
-  return redirect(auth_url)
+  return jsonify({ "auth_url": auth_url })
 
 # YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
@@ -72,7 +72,7 @@ def youtube_callback():
     "scopes": credentials.scopes
   }
   
-  return redirect(os.getenv("WEB_APP_URL"))
+  return render_template_string("<script> window.close(); </script>")
 
 # ==================== SPOTIFY ENDPOINTS ====================
 
@@ -89,16 +89,14 @@ def spotify_login():
   }
   auth_url = f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
-  return redirect(auth_url)
+  return jsonify({ "auth_url": auth_url })
 
 # Spotify callback endpoint
 @oauth_bp.route("/spotify/callback")
 def spotify_callback():
   if "error" in request.args:
-    # TODO: redirect to web app url with an error
-    return jsonify({
-      "error": request.args["error"]
-    })
+    # TODO: let frontend know of request.args["error"]
+    return render_template_string("<script> window.close(); </script>")
   
   if "code" in request.args:
     req_body = {
@@ -117,15 +115,20 @@ def spotify_callback():
     session["refresh_token"] = token_info["refresh_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + token_info["expires_in"]
 
-    return redirect(os.getenv("WEB_APP_URL"))
+    return render_template_string("<script> window.close(); </script>")
   
-  return redirect(url_for("oauth.spotify_login"))
+  return jsonify({ "error": "Bad request to callback" }), 400
 
 # Spotify refresh token endpoint
 @oauth_bp.route("/spotify/refresh-token")
 def spotify_refresh_token():
+  redirect_origin_url = session.pop("redirect_origin_url")
+  if redirect_origin_url is None:
+    # This endpoint should only be reached via a redirect from another endpoint
+    return jsonify({ "error": "Bad request to refresh token" }), 400
+  
   if "refresh_token" not in session:
-    return redirect(url_for("oauth.spotify_login"))
+    return jsonify({ "error": "Not authorized"}), 401
   
   if datetime.datetime.now().timestamp() > session["expires_at"]:
     req_body = {
@@ -136,10 +139,9 @@ def spotify_refresh_token():
     }
   
     response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
-    
     new_token_info = response.json()
 
     session["access_token"] = new_token_info["access_token"]
     session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
-  return redirect(os.getenv("WEB_APP_URL"))
+  return redirect(redirect_origin_url)

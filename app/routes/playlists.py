@@ -12,9 +12,10 @@ playlists_bp = Blueprint("playlists", __name__)
 @playlists_bp.route("/spotify")
 def get_spotify_playlists():
   if "access_token" not in session:
-    return redirect(url_for("oauth.spotify_login"))
+    return jsonify({ "error": "Not authorized"}), 401
 
   if datetime.datetime.now().timestamp() > session["expires_at"]:
+    session["redirect_origin_url"] = url_for("playlists.get_spotify_playlists")
     return redirect(url_for("oauth.spotify_refresh_token"))
   
   playlists = SpotifyService.get_playlists()
@@ -33,7 +34,7 @@ def get_spotify_playlists():
 @playlists_bp.route("/youtube")
 def get_youtube_playlists():
     if "credentials" not in session:
-      return redirect(url_for("youtube.login"))
+      return jsonify({ "error": "Not authorized"}), 401
     
     playlists = YouTubeService.get_playlists()
 
@@ -44,7 +45,7 @@ def get_youtube_playlists():
 @playlists_bp.route("/youtube/create", methods=["POST"])
 def create_youtube_playlist():
   if "credentials" not in session:
-    return redirect(url_for("youtube.login"))
+    return jsonify({ "error": "Not authorized"}), 401
   
   data = request.json
   
