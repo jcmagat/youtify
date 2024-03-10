@@ -43,6 +43,9 @@ def get_youtube_playlists():
     
     playlists = YouTubeService.get_playlists()
 
+    for playlist in playlists["playlists"]:
+      playlist["tracks"] = YouTubeService.get_playlist_tracks(playlist["id"])
+
     return jsonify(playlists)
 
 # TODO: CREATE YOUTUBE PLAYLISTS FROM A LIST OF PLAYLISTS
