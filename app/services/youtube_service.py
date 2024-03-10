@@ -24,7 +24,7 @@ class YouTubeService:
       "id": item["id"],
       "name": item["snippet"]["title"],
       "description": item["snippet"]["description"],
-      "image": item["snippet"]["thumbnails"]["high"]["url"]
+      "image": getattr(getattr(item["snippet"]["thumbnails"], "high", {}), "url", "")
     } for item in response["items"]] }
 
     return playlists
@@ -44,8 +44,8 @@ class YouTubeService:
 
     tracks = [{
       "id": item["snippet"]["resourceId"]["videoId"],
-      "image": item["snippet"]["thumbnails"]["high"]["url"],
-      "name": item["snippet"]["title"]
+      "name": item["snippet"]["title"],
+      "image": getattr(getattr(item["snippet"]["thumbnails"], "high", {}), "url", "")
     } for item in playlist_items_response["items"]]
       
     videos_response = youtube.videos().list(
