@@ -37,14 +37,18 @@ async def get_spotify_playlists():
 
 # Get all YouTube playlists + tracks
 @playlists_bp.route("/youtube")
-def get_youtube_playlists():
+async def get_youtube_playlists():
     if "credentials" not in session:
       return jsonify({ "error": "Not authorized"}), 401
     
-    playlists = YouTubeService.get_playlists()
+    playlists = await YouTubeService.get_playlists()
 
-    for playlist in playlists["playlists"]:
-      playlist["tracks"] = YouTubeService.get_playlist_tracks(playlist["id"])
+    tasks = [YouTubeService.get_playlist_tracks(playlist["id"]) for playlist in playlists["playlists"]]
+    results = await asyncio.gather(*tasks)
+
+    # Map resulting tracks to corresponding playlist
+    for playlist, tracks in zip(playlists["playlists"], results):
+      playlist["tracks"] = tracks
 
     # Filter out empty playlists (playlists not containing music)
     playlists["playlists"] = [playlist for playlist in playlists["playlists"] if playlist["tracks"]]
