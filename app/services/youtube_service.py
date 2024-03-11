@@ -1,68 +1,92 @@
 from flask import session
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-import asyncio
+import aiohttp
 
 # YouTube API info
+API_BASE_URL = "https://www.googleapis.com/youtube/v3"
 API_SERVICE_NAME = "youtube"
 API_VERSION = "v3"
 
+async def fetch_data(url, params=None, headers=None):
+  async with aiohttp.ClientSession() as session:
+    async with session.get(url, params=params, headers=headers) as response:
+        return await response.json()
+
 class YouTubeService:
+  # Get all of user's playlists
   @staticmethod
   async def get_playlists():
-    def _fetch_playlists():
-      # YouTube API client
-      credentials = Credentials.from_authorized_user_info(session["credentials"])
-      youtube = build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+    # YouTube API client
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    access_token = credentials.token
 
-      # Fetch authenticated user's playlists
-      response = youtube.playlists().list(
-        part="snippet",
-        mine=True,
-        maxResults=50
-      ).execute()
+    url = f"{API_BASE_URL}/playlists"
+    params = {
+      "part": "snippet",
+      "mine": "true",
+      "maxResults": 50,
+    }
+    headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Accept": "application/json",
+    }
 
-      return [{
-        "id": item["id"],
-        "name": item["snippet"]["title"],
-        "description": item["snippet"]["description"],
-        "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
-      } for item in response["items"]]
+    response = await fetch_data(url, params, headers)
 
-    playlists = await asyncio.to_thread(_fetch_playlists)
+    playlists = [{
+      "id": item["id"],
+      "name": item["snippet"]["title"],
+      "description": item["snippet"]["description"],
+      "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
+    } for item in response["items"]]
+    
     return { "playlists": playlists }
   
   # Get a playlist's tracks
   @staticmethod
   async def get_playlist_tracks(playlist_id: str):
-    def _fetch_playlist_tracks():
-      # YouTube API client
-      credentials = Credentials.from_authorized_user_info(session["credentials"])
-      youtube = build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+    # YouTube API client
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    access_token = credentials.token
 
-      playlist_items_response = youtube.playlistItems().list(
-        part="snippet",
-        playlistId=playlist_id,
-        maxResults=50
-      ).execute()
+    # Get playlist's items
+    items_url = f"{API_BASE_URL}/playlistItems"
+    items_params = {
+      "part": "snippet",
+      "playlistId": playlist_id,
+      "maxResults": 50,
+    }
+    items_headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Accept": "application/json",
+    }
 
-      tracks = [{
-        "id": item["snippet"]["resourceId"]["videoId"],
-        "name": item["snippet"]["title"],
-        "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
-      } for item in playlist_items_response["items"]]
-        
-      videos_response = youtube.videos().list(
-        part="snippet",
-        id=[track["id"] for track in tracks]
-      ).execute()
+    items_response = await fetch_data(items_url, items_params, items_headers)
 
-      category_ids = [item["snippet"]["categoryId"] for item in videos_response["items"]]
+    tracks = [{
+      "id": item["snippet"]["resourceId"]["videoId"],
+      "name": item["snippet"]["title"],
+      "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
+    } for item in items_response["items"]]
 
-      # Only return music videos (categoryId of "10")
-      return [track for track, category_id in zip(tracks, category_ids) if category_id == "10"]
+    # Get videos (mainly for their categoryId)
+    videos_url = f"{API_BASE_URL}/videos"
+    videos_params = {
+      "part": "snippet",
+      "id": [track["id"] for track in tracks]
+    }
+    videos_headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Accept": "application/json",
+    }
 
-    filtered_tracks = await asyncio.to_thread(_fetch_playlist_tracks)
+    videos_response = await fetch_data(videos_url, videos_params, videos_headers)
+
+    # Only return music videos (categoryId of "10")
+    category_ids = [video["snippet"]["categoryId"] for video in videos_response["items"]]
+    filtered_tracks = [track for track, category_id in zip(tracks, category_ids) if category_id == "10"]
+
     return filtered_tracks
   
   @staticmethod
