@@ -55,15 +55,28 @@ async def get_youtube_playlists():
 
     return jsonify(playlists)
 
-# TODO: CREATE YOUTUBE PLAYLISTS FROM A LIST OF PLAYLISTS
 # Create a YouTube playlist
 @playlists_bp.route("/youtube/create", methods=["POST"])
-def create_youtube_playlist():
+async def create_youtube_playlist():
   if "credentials" not in session:
     return jsonify({ "error": "Not authorized"}), 401
   
-  data = request.json
-  
-  playlist = YouTubeService.create_playlist(data["name"], data["description"])
+  if "playlists" not in request.json:
+    return jsonify({ "error": "Request body must contain playlists" }), 400
 
-  return jsonify(playlist)
+  playlists = request.json["playlists"]
+  # print(playlists)
+
+  # Create playlists
+  create_playlist_tasks = [YouTubeService.create_playlist(playlist["name"], playlist["description"]) for playlist in playlists]
+  new_playlist_ids = await asyncio.gather(*create_playlist_tasks)
+
+  # Search tracks
+  search_track_tasks = [YouTubeService.search_tracks([track["name"] for track in playlist["tracks"]]) for playlist in playlists]
+  track_ids_list = await asyncio.gather(*search_track_tasks)
+
+  # Add tracks to playlist
+  fill_playlist_tasks = [YouTubeService.fill_playlist(playlist_id, track_ids) for playlist_id, track_ids in zip(new_playlist_ids, track_ids_list)]
+  fill_playlist_results = await asyncio.gather(*fill_playlist_tasks)
+
+  return jsonify(fill_playlist_results)

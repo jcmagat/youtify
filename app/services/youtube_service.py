@@ -2,6 +2,7 @@ from flask import session
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import aiohttp
+import asyncio
 
 # YouTube API info
 API_BASE_URL = "https://www.googleapis.com/youtube/v3"
@@ -11,6 +12,11 @@ API_VERSION = "v3"
 async def fetch_data(url, params=None, headers=None):
   async with aiohttp.ClientSession() as session:
     async with session.get(url, params=params, headers=headers) as response:
+        return await response.json()
+    
+async def post(url, params=None, headers=None, json=None):
+  async with aiohttp.ClientSession() as session:
+    async with session.post(url=url, params=params, headers=headers, json=json) as response:
         return await response.json()
 
 class YouTubeService:
@@ -89,24 +95,88 @@ class YouTubeService:
 
     return filtered_tracks
   
+  # Create a playlist and return its id
   @staticmethod
-  def create_playlist(name, description):
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
-
+  async def create_playlist(name: str, description: str):
     # YouTube API client
-    youtube = build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    access_token = credentials.token
 
-    playlist = youtube.playlists().insert(
-      part="snippet,status",
-      body={
-        "snippet": {
-          "title": name,
-          "description": description
-        },
-        "status": {
-          "privacyStatus": "private"
+    url = f"{API_BASE_URL}/playlists"
+    params = {
+      "part": "snippet"
+    }
+    headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Content-Type": "application/json"
+    }
+    json = {
+      "snippet": {
+        "title": name,
+        "desciption": description
+      }
+    }
+    
+    response = await post(url, params, headers, json)
+
+    return response["id"]
+  
+  # Search for tracks and return a list of each track's videoIds
+  @staticmethod
+  async def search_tracks(tracks: list[str]):
+    # YouTube API client
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    access_token = credentials.token
+
+    url = f"{API_BASE_URL}/search"
+    params = {
+      "part": "snippet",
+      "type": "video",
+      "maxResults": 1,
+      "q": ""
+    }
+    headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Content-Type": "application/json"
+    }
+
+    tasks = [fetch_data(url, headers=headers, params={ **params, "q": track }) for track in tracks]
+    results = await asyncio.gather(*tasks)
+
+    ids = [video["items"][0]["id"]["videoId"] for video in results]
+
+    return ids
+  
+  # Add tracks to playlist
+  @staticmethod
+  async def fill_playlist(playlist_id: str, track_ids: list[str]):
+    # YouTube API client
+    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    access_token = credentials.token
+
+    # Search for tracks
+    url = f"{API_BASE_URL}/playlistItems"
+    params = {
+      "part": "snippet",
+      "type": "video",
+      "maxResults": 1,
+      "q": ""
+    }
+    headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Content-Type": "application/json"
+    }
+    json = {
+      "snippet": {
+        "playlistId": playlist_id,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": ""
         }
       }
-    ).execute()
+    }
 
-    return playlist
+    tasks = [post(url, params, headers, json={ **json, "resourceId": { "kind": "youtube#video", "videoId": track_id } }) for track_id in track_ids]
+    results = await asyncio.gather(*tasks)
+
+    return results
