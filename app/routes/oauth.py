@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, request, session, jsonify, render_template_string
+from flask import Blueprint, redirect, request, session, jsonify, render_template_string, url_for
 from google_auth_oauthlib.flow import Flow
 import os
 import requests
@@ -30,25 +30,9 @@ SPOTIFY_REDIRECT_URI: str = os.getenv("SPOTIFY_REDIRECT_URI")
 SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 
-# Status endpoint
-@oauth_bp.route("/status")
-def status():
-  res = {
-      "is_logged_in_youtube": False,
-      "is_logged_in_spotify": False
-    }
-
-  # TODO: check for expiry
-
-  if "credentials" in session:
-    res["is_logged_in_youtube"] = True
-
-  if "access_token" in session:
-    res["is_logged_in_spotify"] = True
-
-  return res
 
 # ==================== YOUTUBE ENDPOINTS ====================
+
 
 # YouTube login endpoint
 @oauth_bp.route("/youtube/login")
@@ -74,7 +58,18 @@ def youtube_callback():
   
   return render_template_string("<script> window.close(); </script>")
 
+# YouTube check login status
+@oauth_bp.route("/youtube/status")
+def youtube_status():
+  if "credentials" not in session:
+    return jsonify({ "is_logged_in": False })
+
+  # TODO: check expiry
+  
+  return jsonify({ "is_logged_in": True })
+
 # ==================== SPOTIFY ENDPOINTS ====================
+
 
 # Spotify login endpoint
 @oauth_bp.route("/spotify/login")
@@ -145,3 +140,15 @@ def spotify_refresh_token():
     session["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
   return redirect(redirect_origin_url)
+
+# Spotify check login status
+@oauth_bp.route("/spotify/status")
+def spotify_status():
+  if "access_token" not in session:
+    return jsonify({ "is_logged_in": False })
+
+  if datetime.datetime.now().timestamp() > session["expires_at"]:
+    session["redirect_origin_url"] = url_for("oauth.spotify_status")
+    return redirect(url_for("oauth.spotify_refresh_token"))
+  
+  return jsonify({ "is_logged_in": True })
