@@ -1,5 +1,8 @@
 from flask import Blueprint, redirect, request, session, jsonify, render_template_string, url_for
 from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from app.services import YouTubeService
 import os
 import requests
 import urllib.parse
@@ -47,26 +50,41 @@ def youtube_callback():
   credentials = flow.credentials
 
   # Store credentials in Flask session
-  session["credentials"] = {
-    "token": credentials.token,
-    "refresh_token": credentials.refresh_token,
-    "token_uri": credentials.token_uri,
-    "client_id": credentials.client_id,
-    "client_secret": credentials.client_secret,
-    "scopes": credentials.scopes
-  }
+  session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
   
   return render_template_string("<script> window.close(); </script>")
+
+# YouTube refresh token endpoint
+@oauth_bp.route("/youtube/refresh-token")
+def youtube_refresh_token():
+  redirect_origin_url = session.pop("redirect_origin_url", None)
+  if redirect_origin_url is None:
+    # This endpoint should only be reached via a redirect from another endpoint
+    return jsonify({ "error": "Bad request to refresh token" }), 400
+  
+  if "youtube_credentials" not in session:
+    return jsonify({ "error": "Not authorized"}), 401
+  
+  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+  if credentials.expired:
+    credentials.refresh(Request())
+    session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
+
+  return redirect(redirect_origin_url)
 
 # YouTube check login status
 @oauth_bp.route("/youtube/status")
 def youtube_status():
-  if "credentials" not in session:
+  if "youtube_credentials" not in session:
     return jsonify({ "is_logged_in": False })
-
-  # TODO: check expiry
+  
+  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+  if credentials.expired:
+    session["redirect_origin_url"] = url_for("oauth.youtube_status")
+    return redirect(url_for("oauth.youtube_refresh_token"))
   
   return jsonify({ "is_logged_in": True })
+
 
 # ==================== SPOTIFY ENDPOINTS ====================
 
@@ -117,7 +135,7 @@ def spotify_callback():
 # Spotify refresh token endpoint
 @oauth_bp.route("/spotify/refresh-token")
 def spotify_refresh_token():
-  redirect_origin_url = session.pop("redirect_origin_url")
+  redirect_origin_url = session.pop("redirect_origin_url", None)
   if redirect_origin_url is None:
     # This endpoint should only be reached via a redirect from another endpoint
     return jsonify({ "error": "Bad request to refresh token" }), 400

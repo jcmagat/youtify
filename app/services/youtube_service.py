@@ -20,11 +20,24 @@ async def post(url, params=None, headers=None, json=None):
         return await response.json()
 
 class YouTubeService:
+  # Turn Credentials from oauth flow to a dictionary
+  @staticmethod
+  def format_credentials(credentials):
+    return {
+    "token": credentials.token,
+    "refresh_token": credentials.refresh_token,
+    "token_uri": credentials.token_uri,
+    "client_id": credentials.client_id,
+    "client_secret": credentials.client_secret,
+    "scopes": credentials.scopes,
+    "expiry": credentials.expiry.isoformat()
+  }
+
   # Get all of user's playlists
   @staticmethod
   async def get_playlists():
     # YouTube API client
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
     access_token = credentials.token
 
     url = f"{API_BASE_URL}/playlists"
@@ -53,7 +66,7 @@ class YouTubeService:
   @staticmethod
   async def get_playlist_tracks(playlist_id: str):
     # YouTube API client
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
     access_token = credentials.token
 
     # Get playlist's items
@@ -99,7 +112,7 @@ class YouTubeService:
   @staticmethod
   async def create_playlist(name: str, description: str):
     # YouTube API client
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
     access_token = credentials.token
 
     url = f"{API_BASE_URL}/playlists"
@@ -125,7 +138,7 @@ class YouTubeService:
   @staticmethod
   async def search_tracks(tracks: list[str]):
     # YouTube API client
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
     access_token = credentials.token
 
     url = f"{API_BASE_URL}/search"
@@ -151,7 +164,7 @@ class YouTubeService:
   @staticmethod
   async def fill_playlist(playlist_id: str, track_ids: list[str]):
     # YouTube API client
-    credentials = Credentials.from_authorized_user_info(session["credentials"])
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
     access_token = credentials.token
 
     # Search for tracks
@@ -166,17 +179,21 @@ class YouTubeService:
       "Authorization": f"Bearer {access_token}",
       "Content-Type": "application/json"
     }
-    json = {
-      "snippet": {
-        "playlistId": playlist_id,
-        "resourceId": {
-          "kind": "youtube#video",
-          "videoId": ""
+
+    tasks = []
+    for track_id in track_ids:
+      json = {
+        "snippet": {
+          "playlistId": playlist_id,
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": track_id
+          }
         }
       }
-    }
+      tasks.append(post(url, params, headers, json))
 
-    tasks = [post(url, params, headers, json={ **json, "resourceId": { "kind": "youtube#video", "videoId": track_id } }) for track_id in track_ids]
+    # TODO: fix operation ABORTED error
     results = await asyncio.gather(*tasks)
 
     return results

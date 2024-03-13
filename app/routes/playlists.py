@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, redirect, session, url_for, request
+from google.oauth2.credentials import Credentials
 from app.services import SpotifyService
 from app.services import YouTubeService
 import datetime
@@ -7,7 +8,9 @@ import asyncio
 # Create /playlists blueprint
 playlists_bp = Blueprint("playlists", __name__)
 
+
 # ==================== SPOTIFY ENDPOINTS ====================
+
 
 # Get all Spotify playlists + tracks
 @playlists_bp.route("/spotify")
@@ -33,33 +36,45 @@ async def get_spotify_playlists():
 
 # TODO: CREATE SPOTIFY PLAYLISTS FROM A LIST OF PLAYLISTS
 
+
 # ==================== YOUTUBE ENDPOINTS ====================
+
 
 # Get all YouTube playlists + tracks
 @playlists_bp.route("/youtube")
 async def get_youtube_playlists():
-    if "credentials" not in session:
-      return jsonify({ "error": "Not authorized"}), 401
-    
-    playlists = await YouTubeService.get_playlists()
+  if "youtube_credentials" not in session:
+    return jsonify({ "error": "Not authorized"}), 401
+  
+  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+  if credentials.expired:
+    session["redirect_origin_url"] = url_for("playlists.get_youtube_playlists")
+    return redirect(url_for("oauth.youtube_refresh_token"))
+  
+  playlists = await YouTubeService.get_playlists()
 
-    tasks = [YouTubeService.get_playlist_tracks(playlist["id"]) for playlist in playlists["playlists"]]
-    results = await asyncio.gather(*tasks)
+  tasks = [YouTubeService.get_playlist_tracks(playlist["id"]) for playlist in playlists["playlists"]]
+  results = await asyncio.gather(*tasks)
 
-    # Map resulting tracks to corresponding playlist
-    for playlist, tracks in zip(playlists["playlists"], results):
-      playlist["tracks"] = tracks
+  # Map resulting tracks to corresponding playlist
+  for playlist, tracks in zip(playlists["playlists"], results):
+    playlist["tracks"] = tracks
 
-    # Filter out empty playlists (playlists not containing music)
-    playlists["playlists"] = [playlist for playlist in playlists["playlists"] if playlist["tracks"]]
+  # Filter out empty playlists (playlists not containing music)
+  playlists["playlists"] = [playlist for playlist in playlists["playlists"] if playlist["tracks"]]
 
-    return jsonify(playlists)
+  return jsonify(playlists)
 
 # Create a YouTube playlist
 @playlists_bp.route("/youtube/create", methods=["POST"])
 async def create_youtube_playlist():
-  if "credentials" not in session:
+  if "youtube_credentials" not in session:
     return jsonify({ "error": "Not authorized"}), 401
+  
+  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+  if credentials.expired:
+    session["redirect_origin_url"] = url_for("playlists.create_youtube_playlist")
+    return redirect(url_for("oauth.youtube_refresh_token"))
   
   if "playlists" not in request.json:
     return jsonify({ "error": "Request body must contain playlists" }), 400
