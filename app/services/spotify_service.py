@@ -13,7 +13,7 @@ class SpotifyService:
   @staticmethod
   async def get_playlists():
     headers = {
-      "Authorization": f"Bearer {session["access_token"]}"
+      "Authorization": f"Bearer {session["spotify_credentials"]["access_token"]}"
     }
 
     response = await fetch_data(f"{API_BASE_URL}me/playlists", headers=headers)
@@ -36,7 +36,7 @@ class SpotifyService:
   @staticmethod
   async def get_playlist_tracks(playlist_id):
     headers = {
-      "Authorization": f"Bearer {session["access_token"]}"
+      "Authorization": f"Bearer {session["spotify_credentials"]["access_token"]}"
     }
 
     response = await fetch_data(f"{API_BASE_URL}playlists/{playlist_id}/tracks", headers=headers)

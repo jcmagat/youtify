@@ -15,10 +15,10 @@ playlists_bp = Blueprint("playlists", __name__)
 # Get all Spotify playlists + tracks
 @playlists_bp.route("/spotify")
 async def get_spotify_playlists():
-  if "access_token" not in session:
+  if "spotify_credentials" not in session:
     return jsonify({ "error": "Not authorized"}), 401
 
-  if datetime.datetime.now().timestamp() > session["expires_at"]:
+  if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
     session["redirect_origin_url"] = url_for("playlists.get_spotify_playlists")
     return redirect(url_for("oauth.spotify_refresh_token"))
   
