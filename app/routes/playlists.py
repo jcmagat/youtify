@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, redirect, session, url_for, request
 from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
 from app.services import SpotifyService
 from app.services import YouTubeService
 import datetime
@@ -30,11 +31,12 @@ async def get_spotify_playlists():
         results = await asyncio.gather(*tasks)
 
         # Map resulting tracks to corresponding playlist
-        for i, playlist in enumerate(playlists["playlists"]):
-            playlist.tracks = results[i]
+        for playlist, tracks in zip(playlists["playlists"], results):
+            playlist.tracks = tracks
     
+    except TypeError as e:
+        return { "error": "Error fetching Spotify playlists. Please try again or contact the developer"}, 500
     except Exception as e:
-        print(e)
         return {"error": "Error"}, 500
 
     return jsonify(playlists)
@@ -56,17 +58,23 @@ async def get_youtube_playlists():
         session["redirect_origin_url"] = url_for("playlists.get_youtube_playlists")
         return redirect(url_for("oauth.youtube_refresh_token"))
     
-    playlists = await YouTubeService.get_playlists()
+    try:
+        playlists = await YouTubeService.get_playlists()
 
-    tasks = [YouTubeService.get_playlist_tracks(playlist["id"]) for playlist in playlists["playlists"]]
-    results = await asyncio.gather(*tasks)
+        tasks = [YouTubeService.get_playlist_tracks(playlist.id) for playlist in playlists["playlists"]]
+        results = await asyncio.gather(*tasks)
+    except HttpError as e:
+        if e.status_code == 403:
+            return { "error": "YouTube API rate limit exceeded. Please try again tomorrow"}, 429
+    except Exception:
+        return { "error": "Something went wrong" }, 500
 
     # Map resulting tracks to corresponding playlist
     for playlist, tracks in zip(playlists["playlists"], results):
-        playlist["tracks"] = tracks
+        playlist.tracks = tracks
 
     # Filter out empty playlists (playlists not containing music)
-    playlists["playlists"] = [playlist for playlist in playlists["playlists"] if playlist["tracks"]]
+    playlists["playlists"] = [playlist for playlist in playlists["playlists"] if playlist.tracks]
 
     return jsonify(playlists)
 

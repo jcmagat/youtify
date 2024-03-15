@@ -19,19 +19,17 @@ class SpotifyService:
         try:
             response = await fetch_data(f"{API_BASE_URL}me/playlists", headers=headers)
         
-            playlists = { "playlists" : [] }
-            for item in response["items"]:      
-                playlist = Playlist(**{
-                    "id": item["id"],
-                    "name": item["name"],
-                    "description": item["description"],
-                    "image": item["images"][0]["url"]
-                })
-                playlists["playlists"].append(playlist)
+            playlists = [Playlist(**{
+                "id": item["id"],
+                "name": item["name"],
+                "description": item["description"],
+                "image": item["images"][0]["url"]
+            }) for item in response["items"]]
+            
         except Exception as e:
             raise(e)
 
-        return playlists
+        return { "playlists" : playlists }
 
     # Get a playlist's tracks
     @staticmethod
