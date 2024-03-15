@@ -40,50 +40,50 @@ SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 # YouTube login endpoint
 @oauth_bp.route("/youtube/login")
 def youtube_login():
-  auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
-  return jsonify({ "auth_url": auth_url })
+    auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
+    return jsonify({ "auth_url": auth_url })
 
 # YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
 def youtube_callback():
-  flow.fetch_token(authorization_response=request.url)
-  credentials = flow.credentials
+    flow.fetch_token(authorization_response=request.url)
+    credentials = flow.credentials
 
-  # Store credentials in Flask session
-  session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
-  
-  return render_template_string("<script> window.close(); </script>")
+    # Store credentials in Flask session
+    session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
+    
+    return render_template_string("<script> window.close(); </script>")
 
 # YouTube refresh token endpoint
 @oauth_bp.route("/youtube/refresh-token")
 def youtube_refresh_token():
-  redirect_origin_url = session.pop("redirect_origin_url", None)
-  if redirect_origin_url is None:
-    # This endpoint should only be reached via a redirect from another endpoint
-    return jsonify({ "error": "Bad request to refresh token" }), 400
-  
-  if "youtube_credentials" not in session:
-    return jsonify({ "error": "Not authorized"}), 401
-  
-  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
-  if credentials.expired:
-    credentials.refresh(Request())
-    session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
+    redirect_origin_url = session.pop("redirect_origin_url", None)
+    if redirect_origin_url is None:
+        # This endpoint should only be reached via a redirect from another endpoint
+        return jsonify({ "error": "Bad request to refresh token" }), 400
+    
+    if "youtube_credentials" not in session:
+        return jsonify({ "error": "Not authorized"}), 401
+    
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+    if credentials.expired:
+        credentials.refresh(Request())
+        session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
 
-  return redirect(redirect_origin_url), 308
+    return redirect(redirect_origin_url), 308
 
 # YouTube check login status
 @oauth_bp.route("/youtube/status")
 def youtube_status():
-  if "youtube_credentials" not in session:
-    return jsonify({ "is_logged_in": False })
-  
-  credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
-  if credentials.expired:
-    session["redirect_origin_url"] = url_for("oauth.youtube_status")
-    return redirect(url_for("oauth.youtube_refresh_token")), 307
-  
-  return jsonify({ "is_logged_in": True })
+    if "youtube_credentials" not in session:
+        return jsonify({ "is_logged_in": False })
+    
+    credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+    if credentials.expired:
+        session["redirect_origin_url"] = url_for("oauth.youtube_status")
+        return redirect(url_for("oauth.youtube_refresh_token")), 307
+    
+    return jsonify({ "is_logged_in": True })
 
 
 # ==================== SPOTIFY ENDPOINTS ====================
@@ -92,83 +92,83 @@ def youtube_status():
 # Spotify login endpoint
 @oauth_bp.route("/spotify/login")
 def spotify_login():
-  scope = "user-read-private user-read-email playlist-read-private"
-  params = {
-    "client_id" : SPOTIFY_CLIENT_ID,
-    "response_type": "code",
-    "scope": scope,
-    "redirect_uri": SPOTIFY_REDIRECT_URI,
-    "show_dialog": True # TODO: remove after testing
-  }
-  auth_url = f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}"
+    scope = "user-read-private user-read-email playlist-read-private"
+    params = {
+        "client_id" : SPOTIFY_CLIENT_ID,
+        "response_type": "code",
+        "scope": scope,
+        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "show_dialog": True # TODO: remove after testing
+    }
+    auth_url = f"{SPOTIFY_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
-  return jsonify({ "auth_url": auth_url })
+    return jsonify({ "auth_url": auth_url })
 
 # Spotify callback endpoint
 @oauth_bp.route("/spotify/callback")
 def spotify_callback():
-  if "error" in request.args:
-    # TODO: let frontend know of request.args["error"]
-    return render_template_string("<script> window.close(); </script>")
-  
-  if "code" in request.args:
-    req_body = {
-      "code": request.args["code"],
-      "grant_type": "authorization_code",
-      "redirect_uri": SPOTIFY_REDIRECT_URI,
-      "client_id": SPOTIFY_CLIENT_ID,
-      "client_secret": SPOTIFY_CLIENT_SECRET
-    }
+    if "error" in request.args:
+        # TODO: let frontend know of request.args["error"]
+        return render_template_string("<script> window.close(); </script>")
+    
+    if "code" in request.args:
+        req_body = {
+        "code": request.args["code"],
+        "grant_type": "authorization_code",
+        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET
+        }
 
-    # Send POST request with req_body to Spotify's token endpoint
-    response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
+        # Send POST request with req_body to Spotify's token endpoint
+        response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
 
-    token_info = response.json()
-    session["spotify_credentials"] = {
-      "access_token": token_info["access_token"],
-      "refresh_token": token_info["refresh_token"],
-      "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
-    }
+        token_info = response.json()
+        session["spotify_credentials"] = {
+        "access_token": token_info["access_token"],
+        "refresh_token": token_info["refresh_token"],
+        "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
+        }
 
-    return render_template_string("<script> window.close(); </script>")
-  
-  return jsonify({ "error": "Bad request to callback" }), 400
+        return render_template_string("<script> window.close(); </script>")
+    
+    return jsonify({ "error": "Bad request to callback" }), 400
 
 # Spotify refresh token endpoint
 @oauth_bp.route("/spotify/refresh-token")
 def spotify_refresh_token():
-  redirect_origin_url = session.pop("redirect_origin_url", None)
-  if redirect_origin_url is None:
-    # This endpoint should only be reached via a redirect from another endpoint
-    return jsonify({ "error": "Bad request to refresh token" }), 400
-  
-  if "spotify_credentials" not in session:
-    return jsonify({ "error": "Not authorized"}), 401
-  
-  if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
-    req_body = {
-      "grant_type": "refresh_token",
-      "refresh_token": session["refresh_token"],
-      "client_id": SPOTIFY_CLIENT_ID,
-      "client_secret": SPOTIFY_CLIENT_SECRET
-    }
-  
-    response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
-    new_token_info = response.json()
+    redirect_origin_url = session.pop("redirect_origin_url", None)
+    if redirect_origin_url is None:
+        # This endpoint should only be reached via a redirect from another endpoint
+        return jsonify({ "error": "Bad request to refresh token" }), 400
+    
+    if "spotify_credentials" not in session:
+        return jsonify({ "error": "Not authorized"}), 401
+    
+    if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
+        req_body = {
+        "grant_type": "refresh_token",
+        "refresh_token": session["spotify_credentials"]["refresh_token"],
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET
+        }
+    
+        response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
+        new_token_info = response.json()
 
-    session["spotify_credentials"]["access_token"] = new_token_info["access_token"]
-    session["spotify_credentials"]["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
+        session["spotify_credentials"]["access_token"] = new_token_info["access_token"]
+        session["spotify_credentials"]["expires_at"] = datetime.datetime.now().timestamp() + new_token_info["expires_in"]
 
-  return redirect(redirect_origin_url), 308
+    return redirect(redirect_origin_url), 308
 
 # Spotify check login status
 @oauth_bp.route("/spotify/status")
 def spotify_status():
-  if "spotify_credentials" not in session:
-    return jsonify({ "is_logged_in": False })
+    if "spotify_credentials" not in session:
+        return jsonify({ "is_logged_in": False })
 
-  if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
-    session["redirect_origin_url"] = url_for("oauth.spotify_status")
-    return redirect(url_for("oauth.spotify_refresh_token")), 307
-  
-  return jsonify({ "is_logged_in": True })
+    if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
+        session["redirect_origin_url"] = url_for("oauth.spotify_status")
+        return redirect(url_for("oauth.spotify_refresh_token")), 307
+    
+    return jsonify({ "is_logged_in": True })

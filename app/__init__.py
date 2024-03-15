@@ -25,3 +25,8 @@ Session(app)
 # Routes and blueprints config
 app.register_blueprint(oauth_bp, url_prefix="/oauth")
 app.register_blueprint(playlists_bp, url_prefix="/playlists")
+
+# Home endpoint
+@app.route("/")
+def index():
+    return "Welcome to YouTify API"
