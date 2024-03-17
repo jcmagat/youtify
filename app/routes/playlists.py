@@ -5,6 +5,7 @@ from app.services import SpotifyService
 from app.services import YouTubeService
 import datetime
 import asyncio
+import aiohttp
 
 # Create /playlists blueprint
 playlists_bp = Blueprint("playlists", __name__)
@@ -17,7 +18,7 @@ playlists_bp = Blueprint("playlists", __name__)
 @playlists_bp.route("/spotify")
 async def get_spotify_playlists():
     if "spotify_credentials" not in session:
-        return { "error": "Not authorized"}, 401
+        return { "error": "Not authorized" }, 401
 
     if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
         session["redirect_origin_url"] = url_for("playlists.get_spotify_playlists")
@@ -29,15 +30,19 @@ async def get_spotify_playlists():
         # Asynchronous calls to Spotify API
         tasks = [SpotifyService.get_playlist_tracks(playlist.id) for playlist in playlists["playlists"]]
         results = await asyncio.gather(*tasks)
-
-        # Map resulting tracks to corresponding playlist
-        for playlist, tracks in zip(playlists["playlists"], results):
-            playlist.tracks = tracks
-    
-    except TypeError as e:
-        return { "error": "Error fetching Spotify playlists. Please try again or contact the developer"}, 500
+    except aiohttp.ClientResponseError as e:
+        if e.status == 401:
+            return { "error": "Not authorized"}, 401
+        elif e.status == 429:
+            return { "error": "Spotify rate limit exceeded. Please try again later" }, 429
+        else:
+            return { "error": "Internal server error. Please contact the developer" }, 500
     except Exception as e:
-        return {"error": "Error"}, 500
+            return { "error": "Internal server error. Please contact the developer" }, 500
+    
+    # Map resulting tracks to corresponding playlist
+    for playlist, tracks in zip(playlists["playlists"], results):
+        playlist.tracks = tracks
 
     return jsonify(playlists)
 
