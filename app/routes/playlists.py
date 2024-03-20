@@ -68,11 +68,22 @@ async def get_youtube_playlists():
 
         tasks = [YouTubeService.get_playlist_tracks(playlist.id) for playlist in playlists["playlists"]]
         results = await asyncio.gather(*tasks)
-    except HttpError as e:
-        if e.status_code == 403:
-            return { "error": "YouTube API rate limit exceeded. Please try again tomorrow"}, 429
-    except Exception:
-        return { "error": "Something went wrong" }, 500
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            # Possible reasons for playlists.list:
+            # channelClosed
+            # channelSuspended
+            # playlistForbidden
+            return { "error": "Forbidden"}, e.status
+        elif e.status == 404:
+            # Possible reasons playlists.list:
+            # channelNotFound
+            # playlistNotFound
+            return { "error": "Not found" }, e.status
+        else:
+            return { "error": "Internal server error. Please contact the developer" }, 500
+    except Exception as e:
+            return { "error": "Internal server error. Please contact the developer" }, 500
 
     # Map resulting tracks to corresponding playlist
     for playlist, tracks in zip(playlists["playlists"], results):
@@ -98,18 +109,37 @@ async def create_youtube_playlist():
         return jsonify({ "error": "Request body must contain playlists" }), 400
 
     playlists = request.json["playlists"]
-    # print(playlists)
 
-    # Create playlists
-    create_playlist_tasks = [YouTubeService.create_playlist(playlist["name"], playlist["description"]) for playlist in playlists]
-    new_playlist_ids = await asyncio.gather(*create_playlist_tasks)
+    try:
+        # Create playlists
+        create_playlist_tasks = [YouTubeService.create_playlist(playlist["name"], playlist["description"]) for playlist in playlists]
+        new_playlist_ids = await asyncio.gather(*create_playlist_tasks)
 
-    # Search tracks
-    search_track_tasks = [YouTubeService.search_tracks([track["name"] for track in playlist["tracks"]]) for playlist in playlists]
-    track_ids_list = await asyncio.gather(*search_track_tasks)
+        # Search tracks
+        search_track_tasks = [YouTubeService.search_tracks([track["name"] for track in playlist["tracks"]]) for playlist in playlists]
+        resource_ids_list = await asyncio.gather(*search_track_tasks)
 
-    # Add tracks to playlist
-    fill_playlist_tasks = [YouTubeService.fill_playlist(playlist_id, track_ids) for playlist_id, track_ids in zip(new_playlist_ids, track_ids_list)]
-    fill_playlist_results = await asyncio.gather(*fill_playlist_tasks)
+        # Add tracks to playlist
+        fill_playlist_tasks = [YouTubeService.fill_playlist(playlist_id, resource_ids) for playlist_id, resource_ids in zip(new_playlist_ids, resource_ids_list)]
+        fill_playlist_results = await asyncio.gather(*fill_playlist_tasks)
+
+    except aiohttp.ClientResponseError as e:
+        if e.status == 403:
+            # Possible reasons for playlists.list:
+            # channelClosed
+            # channelSuspended
+            # playlistForbidden
+            return { "error": "Forbidden"}, e.status
+        elif e.status == 404:
+            # Possible reasons playlists.list:
+            # channelNotFound
+            # playlistNotFound
+            return { "error": "Not found" }, e.status
+        elif e.status == 409:
+            return { "error": "Conflict" }, e.status
+        else:
+            return { "error": "Internal server error. Please contact the developer" }, 500
+    except Exception as e:
+            return { "error": "Internal server error. Please contact the developer" }, 500
 
     return jsonify(fill_playlist_results)

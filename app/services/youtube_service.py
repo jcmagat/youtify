@@ -1,25 +1,34 @@
 from flask import session
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
-from app.schemas import Playlist
+from app.schemas import Playlist, Track
 import aiohttp
 import asyncio
 import logging
 
 # YouTube API info
-API_BASE_URL = "https://www.googleapis.com/youtubes/v3"
+API_BASE_URL = "https://www.googleapis.com/youtube/v3"
 API_SERVICE_NAME = "youtube"
 API_VERSION = "v3"
 
 async def fetch_data(url, params=None, headers=None):
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(raise_for_status=False) as session:
         async with session.get(url, params=params, headers=headers) as response:
-            return await response.json()
-    
+            data = await response.json()
+            return data
+            # if raise_for_status=True, it's almost impossible to tell the cause of error
+            # the problem is that it doesn't raise an exception despite response containing error
+            # e.g. {'error': {'code': 403, 'message': 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.', 'errors': [{'message': 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.', 'domain': 'youtube.quota', 'reason': 'quotaExceeded'}]}}
+
+
 async def post(url, params=None, headers=None, json=None):
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(raise_for_status=True) as session:
         async with session.post(url=url, params=params, headers=headers, json=json) as response:
             return await response.json()
+
+# TODO: handle 403 forbidden!!! re-authenticate or simply return unauthenticated
+# to tell user that they need to re-authenticate
+# NOTE: actually the reason is that I've exceeded my youtube api quota
 
 class YouTubeService:
     # Turn Credentials from oauth flow to a dictionary
@@ -42,7 +51,7 @@ class YouTubeService:
         credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
         access_token = credentials.token
 
-        url = f"{API_BASE_URL}/playlists"
+        url = f"{API_BASE_URL}/playlists" # quota cost per call: 1
         params = {
             "part": "snippet",
             "mine": "true",
@@ -55,9 +64,12 @@ class YouTubeService:
 
         try:
             response = await fetch_data(url, params, headers)
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Error in YouTubeService.get_playlists: {e}")
+            raise
         except Exception as e:
-            logging.error(e)
-            raise(e)
+            logging.error(f"Unexpected error in YouTubeService.get_playlists: {e}")
+            raise            
         
         playlists = [Playlist(**{
             "id": item["id"],
@@ -76,7 +88,7 @@ class YouTubeService:
         access_token = credentials.token
 
         # Get playlist's items
-        items_url = f"{API_BASE_URL}/playlistItems"
+        items_url = f"{API_BASE_URL}/playlistItems" # quota cost per call: 1
         items_params = {
             "part": "snippet",
             "playlistId": playlist_id,
@@ -89,29 +101,31 @@ class YouTubeService:
 
         try:
             items_response = await fetch_data(items_url, items_params, items_headers)
-        except HttpError as e:
-            raise(e)
+
+            tracks = [Track(**{
+                "id": item["snippet"]["resourceId"]["videoId"],
+                "name": item["snippet"]["title"],
+                "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
+            }) for item in items_response["items"]]
+
+            # Get videos (mainly for their categoryId)
+            videos_url = f"{API_BASE_URL}/videos" # quota cost per call: 1
+            videos_params = {
+                "part": "snippet",
+                "id": [track.id for track in tracks]
+            }
+            videos_headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            }
+
+            videos_response = await fetch_data(videos_url, videos_params, videos_headers)
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Error in YouTubeService.get_playlist_tracks: {e.status} {e.message}")
+            raise
         except Exception as e:
-            raise(e)
-
-        tracks = [{
-            "id": item["snippet"]["resourceId"]["videoId"],
-            "name": item["snippet"]["title"],
-            "image": item["snippet"]["thumbnails"].get("high", {}).get("url", "")
-        } for item in items_response["items"]]
-
-        # Get videos (mainly for their categoryId)
-        videos_url = f"{API_BASE_URL}/videos"
-        videos_params = {
-            "part": "snippet",
-            "id": [track["id"] for track in tracks]
-        }
-        videos_headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-        }
-
-        videos_response = await fetch_data(videos_url, videos_params, videos_headers)
+            logging.error(f"Unexpected error in YouTubeService.get_playlist_tracks: {e}")
+            raise
 
         # Only return music videos (categoryId of "10")
         category_ids = [video["snippet"]["categoryId"] for video in videos_response["items"]]
@@ -126,7 +140,7 @@ class YouTubeService:
         credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
         access_token = credentials.token
 
-        url = f"{API_BASE_URL}/playlists"
+        url = f"{API_BASE_URL}/playlists" # quota cost per call: 50
         params = {
             "part": "snippet"
         }
@@ -141,7 +155,14 @@ class YouTubeService:
             }
         }
         
-        response = await post(url, params, headers, json)
+        try:
+            response = await post(url, params, headers, json)
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Error in YouTubeService.create_playlist: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error in YouTubeService.create_playlist: {e}")
+            raise
 
         return response["id"]
   
@@ -153,7 +174,7 @@ class YouTubeService:
         credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
         access_token = credentials.token
 
-        url = f"{API_BASE_URL}/search"
+        url = f"{API_BASE_URL}/search" # quota cost per call: 100
         params = {
             "part": "snippet",
             "type": "video",
@@ -165,8 +186,15 @@ class YouTubeService:
             "Content-Type": "application/json"
         }
 
-        tasks = [fetch_data(url, headers=headers, params={ **params, "q": track }) for track in tracks]
-        results = await asyncio.gather(*tasks)
+        try:
+            tasks = [fetch_data(url, headers=headers, params={ **params, "q": track }) for track in tracks]
+            results = await asyncio.gather(*tasks)
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Error in YouTubeService.search_tracks: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error in YouTubeService.search_tracks: {e}")
+            raise
 
         resource_ids = [video["items"][0]["id"] for video in results]
 
@@ -180,7 +208,7 @@ class YouTubeService:
         access_token = credentials.token
 
         # Search for tracks
-        url = f"{API_BASE_URL}/playlistItems"
+        url = f"{API_BASE_URL}/playlistItems" # quota cost per call: 50
         params = {
             "part": "snippet"
         }
@@ -189,19 +217,26 @@ class YouTubeService:
             "Content-Type": "application/json"
         }
 
-        tasks = []
-        for resource_id in resource_ids:
-            json = {
-                "snippet": {
-                    "playlistId": playlist_id,
-                    "resourceId": resource_id
+        try:
+            results = []
+            for resource_id in resource_ids:
+                json = {
+                    "snippet": {
+                        "playlistId": playlist_id,
+                        "resourceId": resource_id
+                    }
                 }
-            }
-            tasks.append(post(url, params, headers, json))
+                results.append(await post(url, params, headers, json))
 
-        results = await asyncio.gather(*tasks)
+            # NOTE: seems like adding videos to playlist can't be done asynchronously
+            # without running into 409 Conflict errors
+            # BUT 409 still happens with large playlists despite synchronous calls
 
-        # TODO: fix operation ABORTED error
-        # if e.resp.status == 409 and 'SERVICE_UNAVAILABLE' in str(e)
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Error in YouTubeService.fill_playlist: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error in YouTubeService.fill_playlist: {e}")
+            raise
 
         return results
