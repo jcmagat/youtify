@@ -80,6 +80,8 @@ async def get_youtube_playlists():
             # channelNotFound
             # playlistNotFound
             return { "error": "Not found" }, e.status
+        elif e.status == 429:
+            return { "error": "YouTube rate limit exceeded. Please try again later" }, e.status
         else:
             return { "error": "Internal server error. Please contact the developer" }, 500
     except Exception as e:
@@ -137,6 +139,8 @@ async def create_youtube_playlist():
             return { "error": "Not found" }, e.status
         elif e.status == 409:
             return { "error": "Conflict" }, e.status
+        elif e.status == 429:
+            return { "error": "YouTube rate limit exceeded. Please try again later" }, e.status
         else:
             return { "error": "Internal server error. Please contact the developer" }, 500
     except Exception as e:

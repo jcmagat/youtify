@@ -12,23 +12,47 @@ API_SERVICE_NAME = "youtube"
 API_VERSION = "v3"
 
 async def fetch_data(url, params=None, headers=None):
-    async with aiohttp.ClientSession(raise_for_status=False) as session:
+    async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params, headers=headers) as response:
-            data = await response.json()
-            return data
-            # if raise_for_status=True, it's almost impossible to tell the cause of error
-            # the problem is that it doesn't raise an exception despite response containing error
-            # e.g. {'error': {'code': 403, 'message': 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.', 'errors': [{'message': 'The request cannot be completed because you have exceeded your <a href="/youtube/v3/getting-started#quota">quota</a>.', 'domain': 'youtube.quota', 'reason': 'quotaExceeded'}]}}
+            try:
+                data = await response.json()
+                if response.status == 200:
+                    return data
+                else:
+                    response.raise_for_status() # caught by except below
+            except aiohttp.ClientResponseError as e:
+                if e.status == 403 and "quotaExceeded" in str(data):
+                    # Re-raise rate limit error as 429 to standardize across different music services
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=429,
+                        message="Rate Limit Exceeded"
+                    )
+                else:
+                    response.raise_for_status()
 
 
 async def post(url, params=None, headers=None, json=None):
-    async with aiohttp.ClientSession(raise_for_status=True) as session:
+    async with aiohttp.ClientSession() as session:
         async with session.post(url=url, params=params, headers=headers, json=json) as response:
-            return await response.json()
-
-# TODO: handle 403 forbidden!!! re-authenticate or simply return unauthenticated
-# to tell user that they need to re-authenticate
-# NOTE: actually the reason is that I've exceeded my youtube api quota
+            try:
+                data = await response.json()
+                if response.status == 200:
+                    return data
+                else:
+                    response.raise_for_status() # caught by except below
+            except aiohttp.ClientResponseError as e:
+                if e.status == 403 and "quotaExceeded" in str(data):
+                    # Re-raise rate limit error as 429 to standardize across different music services
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=429,
+                        message="Rate Limit Exceeded"
+                    )
+                else:
+                    response.raise_for_status()
 
 class YouTubeService:
     # Turn Credentials from oauth flow to a dictionary
