@@ -1,10 +1,10 @@
 from flask import session
 from google.oauth2.credentials import Credentials
-from googleapiclient.errors import HttpError
 from app.schemas import Playlist, Track
 import aiohttp
 import asyncio
 import logging
+import time
 
 # YouTube API info
 API_BASE_URL = "https://www.googleapis.com/youtube/v3"
@@ -89,7 +89,7 @@ class YouTubeService:
         try:
             response = await fetch_data(url, params, headers)
         except aiohttp.ClientResponseError as e:
-            logging.error(f"Error in YouTubeService.get_playlists: {e}")
+            logging.error(f"Error in YouTubeService.get_playlists: {e.status} {e.message}")
             raise
         except Exception as e:
             logging.error(f"Unexpected error in YouTubeService.get_playlists: {e}")
@@ -182,7 +182,7 @@ class YouTubeService:
         try:
             response = await post(url, params, headers, json)
         except aiohttp.ClientResponseError as e:
-            logging.error(f"Error in YouTubeService.create_playlist: {e}")
+            logging.error(f"Error in YouTubeService.create_playlist: {e.status} {e.message}")
             raise
         except Exception as e:
             logging.error(f"Unexpected error in YouTubeService.create_playlist: {e}")
@@ -203,6 +203,7 @@ class YouTubeService:
             "part": "snippet",
             "type": "video",
             "maxResults": 1,
+            "videoCategoryId": 10,
             "q": ""
         }
         headers = {
@@ -214,7 +215,7 @@ class YouTubeService:
             tasks = [fetch_data(url, headers=headers, params={ **params, "q": track }) for track in tracks]
             results = await asyncio.gather(*tasks)
         except aiohttp.ClientResponseError as e:
-            logging.error(f"Error in YouTubeService.search_tracks: {e}")
+            logging.error(f"Error in YouTubeService.search_tracks: {e.status} {e.message}")
             raise
         except Exception as e:
             logging.error(f"Unexpected error in YouTubeService.search_tracks: {e}")
@@ -241,23 +242,33 @@ class YouTubeService:
             "Content-Type": "application/json"
         }
 
-        try:
-            results = []
-            for resource_id in resource_ids:
-                json = {
-                    "snippet": {
-                        "playlistId": playlist_id,
-                        "resourceId": resource_id
+        async def _add_to_playlist(playlist_id, resource_id):
+            MAX_RETRIES = 5
+            retry_count = 0
+            wait_time = 1 # seconds
+
+            while retry_count < MAX_RETRIES:
+                try:
+                    json = {
+                        "snippet": {
+                            "playlistId": playlist_id,
+                            "resourceId": resource_id
+                        }
                     }
-                }
-                results.append(await post(url, params, headers, json))
+                    return await post(url, params, headers, json)
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 409:
+                        retry_count += 1
+                        time.sleep(wait_time)
+                        wait_time *= 2
+                    else:
+                        raise
+            return { "error": "Failed to add video to playlist" }
 
-            # NOTE: seems like adding videos to playlist can't be done asynchronously
-            # without running into 409 Conflict errors
-            # BUT 409 still happens with large playlists despite synchronous calls
-
+        try:
+            results = [await _add_to_playlist(playlist_id, resource_id) for resource_id in resource_ids]
         except aiohttp.ClientResponseError as e:
-            logging.error(f"Error in YouTubeService.fill_playlist: {e}")
+            logging.error(f"Error in YouTubeService.fill_playlist: {e.status} {e.message}")
             raise
         except Exception as e:
             logging.error(f"Unexpected error in YouTubeService.fill_playlist: {e}")
