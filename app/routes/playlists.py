@@ -46,7 +46,45 @@ async def get_spotify_playlists():
 
     return jsonify(playlists)
 
-# TODO: CREATE SPOTIFY PLAYLISTS FROM A LIST OF PLAYLISTS
+# Create Spotify playlists
+@playlists_bp.route("/spotify/create", methods=["POST"])
+async def create_youtube_playlists():
+    if "spotify_credentials" not in session:
+        return { "error": "Not authorized" }, 401
+
+    if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
+        session["redirect_origin_url"] = url_for("playlists.create_youtube_playlists")
+        return redirect(url_for("oauth.spotify_refresh_token"))
+    
+    if "playlists" not in request.json:
+        return jsonify({ "error": "Request body must contain playlists" }), 400
+
+    playlists = request.json["playlists"]
+
+    try:
+        # Create playlists
+        create_playlist_tasks = [SpotifyService.create_playlist(playlist["name"], playlist["description"]) for playlist in playlists]
+        new_playlist_ids = await asyncio.gather(*create_playlist_tasks)
+
+        # Search tracks
+        search_track_tasks = [SpotifyService.search_tracks([track["name"] for track in playlist["tracks"]]) for playlist in playlists]
+        track_uris_list = await asyncio.gather(*search_track_tasks)
+
+        # # Add tracks to playlist
+        fill_playlist_tasks = [SpotifyService.fill_playlist(playlist_id, track_uris) for playlist_id, track_uris in zip(new_playlist_ids, track_uris_list)]
+        fill_playlist_results = await asyncio.gather(*fill_playlist_tasks)
+        
+    except aiohttp.ClientResponseError as e:
+        if e.status == 401:
+            return { "error": "Not authorized"}, 401
+        elif e.status == 429:
+            return { "error": "Spotify rate limit exceeded. Please try again later" }, 429
+        else:
+            return { "error": "Internal server error. Please contact the developer" }, 500
+    except Exception as e:
+            return { "error": "Internal server error. Please contact the developer" }, 500
+
+    return jsonify(fill_playlist_results)
 
 
 # ==================== YOUTUBE ENDPOINTS ====================

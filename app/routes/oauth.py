@@ -92,7 +92,7 @@ def youtube_status():
 # Spotify login endpoint
 @oauth_bp.route("/spotify/login")
 def spotify_login():
-    scope = "user-read-private user-read-email playlist-read-private"
+    scope = "user-read-private user-read-email playlist-read-private playlist-modify-public playlist-modify-private"
     params = {
         "client_id" : SPOTIFY_CLIENT_ID,
         "response_type": "code",
