@@ -203,7 +203,7 @@ class YouTubeService:
             "part": "snippet",
             "type": "video",
             "maxResults": 1,
-            "videoCategoryId": 10,
+            "videoCategoryId": "10",
             "q": ""
         }
         headers = {

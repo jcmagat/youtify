@@ -11,16 +11,24 @@ import datetime
 # Create /oauth blueprint
 oauth_bp = Blueprint("oauth", __name__)
 
-WEB_APP_URL: str = os.getenv("WEB_APP_URL")
-
 # YouTube API info
-YOUTUBE_CLIENT_SECRETS_FILE = "app/config/client_secrets.json"
+YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI")
+YOUTUBE_CLIENT_CONFIG = {
+    "web": {
+        "client_id": os.getenv("YOUTUBE_CLIENT_ID"),
+        "project_id": os.getenv("YOUTUBE_PROJECT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": os.getenv("YOUTUBE_CLIENT_SECRET"),
+        "redirect_uris": [YOUTUBE_REDIRECT_URI]
+    }
+}
 YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly", 
                   "https://www.googleapis.com/auth/youtube.force-ssl"]
-YOUTUBE_REDIRECT_URI = os.getenv("YOUTUBE_REDIRECT_URI")
 
-flow = Flow.from_client_secrets_file(
-    YOUTUBE_CLIENT_SECRETS_FILE,
+flow = Flow.from_client_config(
+    client_config=YOUTUBE_CLIENT_CONFIG,
     scopes=YOUTUBE_SCOPES,
     redirect_uri=YOUTUBE_REDIRECT_URI
 )
