@@ -7,6 +7,7 @@ from app.routes.oauth import oauth_bp
 from app.routes.playlists import playlists_bp
 import os
 import logging
+import sys
 
 load_dotenv(".env")
 
@@ -27,11 +28,19 @@ app.register_blueprint(oauth_bp, url_prefix="/oauth")
 app.register_blueprint(playlists_bp, url_prefix="/playlists")
 
 # Logging config
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.DEBUG)
+
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setLevel(logging.ERROR)
+
 logging.basicConfig(
-    level=logging.DEBUG,
-    filename="logs/debug.log",
+    level=LOG_LEVEL,
     format="[%(levelname)s - %(asctime)s]: %(message)s",
-    datefmt="%m-%d-%Y %H:%M:%S"
+    datefmt="%m-%d-%Y %H:%M:%S",
+    handlers=[stdout_handler, stderr_handler]
 )
 
 # Home endpoint
