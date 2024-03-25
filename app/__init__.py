@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 from flask_session import Session
-from redis import Redis
+from redis import Redis, from_url
 from app.routes.oauth import oauth_bp
 from app.routes.playlists import playlists_bp
 import os
@@ -20,7 +20,8 @@ CORS(app, supports_credentials=True)
 
 # Flask-Session config
 app.config["SESSION_TYPE"] = "redis"
-app.config["SESSION_REDIS"] = Redis(host="redis", port=6379, db=0)
+# app.config["SESSION_REDIS"] = Redis(host="redis", port=6379, db=0)
+app.config["SESSION_REDIS"] = from_url(os.getenv("REDIS_URL"))
 app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(days=7)
 
 Session(app)
