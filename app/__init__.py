@@ -6,6 +6,7 @@ from redis import Redis
 from app.routes.oauth import oauth_bp
 from app.routes.playlists import playlists_bp
 import os
+import datetime
 import logging
 import sys
 
@@ -20,6 +21,7 @@ CORS(app, supports_credentials=True)
 # Flask-Session config
 app.config["SESSION_TYPE"] = "redis"
 app.config["SESSION_REDIS"] = Redis(host="redis", port=6379, db=0)
+app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(days=7)
 
 Session(app)
 
