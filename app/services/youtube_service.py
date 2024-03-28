@@ -1,10 +1,12 @@
 from flask import session
 from google.oauth2.credentials import Credentials
 from app.schemas import Playlist, Track
+from app.utils import fetch_cache, set_cache
 import aiohttp
 import asyncio
 import logging
 import time
+import json
 
 # YouTube API info
 API_BASE_URL = "https://www.googleapis.com/youtube/v3"
@@ -194,25 +196,40 @@ class YouTubeService:
     # resourceId is used for inserting playlistItems into playlists in fill_playlist()
     @staticmethod
     async def search_tracks(tracks: list[str]):
-        # YouTube API client
-        credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
-        access_token = credentials.token
+        async def _search_track(track: str):
+            # Check cache
+            cached_result = await fetch_cache(f"youtube_search:{track}")
+            if cached_result:
+                return json.loads(cached_result)
 
-        url = f"{API_BASE_URL}/search" # quota cost per call: 100
-        params = {
-            "part": "snippet",
-            "type": "video",
-            "maxResults": 1,
-            "videoCategoryId": "10",
-            "q": ""
-        }
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+            # YouTube API client
+            credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
+            access_token = credentials.token
+
+            url = f"{API_BASE_URL}/search" # quota cost per call: 100
+            params = {
+                "part": "snippet",
+                "type": "video",
+                "maxResults": 1,
+                "videoCategoryId": "10",
+                "q": ""
+            }
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+
+            # Fetch from YouTube        
+            params["q"] = track
+            result = await fetch_data(url, headers=headers, params=params)
+
+            # Save to cache
+            await set_cache(f"youtube_search:{track}", json.dumps(result["items"][0]["id"]), ttl=120)
+
+            return result["items"][0]["id"]
 
         try:
-            tasks = [fetch_data(url, headers=headers, params={ **params, "q": track }) for track in tracks]
+            tasks = [_search_track(track) for track in tracks]
             results = await asyncio.gather(*tasks)
         except aiohttp.ClientResponseError as e:
             logging.error(f"Error in YouTubeService.search_tracks: {e.status} {e.message}")
@@ -221,9 +238,7 @@ class YouTubeService:
             logging.error(f"Unexpected error in YouTubeService.search_tracks: {e}")
             raise
 
-        resource_ids = [video["items"][0]["id"] for video in results]
-
-        return resource_ids
+        return results
   
     # Add tracks to playlist
     @staticmethod
@@ -232,7 +247,6 @@ class YouTubeService:
         credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
         access_token = credentials.token
 
-        # Search for tracks
         url = f"{API_BASE_URL}/playlistItems" # quota cost per call: 50
         params = {
             "part": "snippet"
