@@ -157,10 +157,10 @@ async def create_youtube_playlist():
 
         # Search tracks
         search_track_tasks = [YouTubeService.search_tracks([track["name"] for track in playlist["tracks"]]) for playlist in playlists]
-        resource_ids_list = await asyncio.gather(*search_track_tasks)
+        video_ids_list = await asyncio.gather(*search_track_tasks)
 
         # Add tracks to playlist
-        fill_playlist_tasks = [YouTubeService.fill_playlist(playlist_id, resource_ids) for playlist_id, resource_ids in zip(new_playlist_ids, resource_ids_list)]
+        fill_playlist_tasks = [YouTubeService.fill_playlist(playlist_id, video_ids) for playlist_id, video_ids in zip(new_playlist_ids, video_ids_list)]
         fill_playlist_results = await asyncio.gather(*fill_playlist_tasks)
 
     except aiohttp.ClientResponseError as e:

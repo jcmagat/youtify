@@ -192,15 +192,15 @@ class YouTubeService:
 
         return response["id"]
   
-    # Search for tracks and return a list of each video's resourceId
-    # resourceId is used for inserting playlistItems into playlists in fill_playlist()
+    # Search for tracks and return a list of each video's videoId
+    # videoId is used for inserting playlistItems into playlists in fill_playlist()
     @staticmethod
     async def search_tracks(tracks: list[str]):
         async def _search_track(track: str):
             # Check cache
-            cached_result = await fetch_cache(f"youtube_search:{track}")
-            if cached_result:
-                return json.loads(cached_result)
+            cached_video_id = await fetch_cache(f"youtube_search:{track}")
+            if cached_video_id:
+                return cached_video_id.decode("utf-8")
 
             # YouTube API client
             credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
@@ -211,7 +211,7 @@ class YouTubeService:
                 "part": "snippet",
                 "type": "video",
                 "maxResults": 1,
-                "videoCategoryId": "10",
+                "videoCategoryId": "10", # music
                 "q": ""
             }
             headers = {
@@ -223,10 +223,12 @@ class YouTubeService:
             params["q"] = track
             result = await fetch_data(url, headers=headers, params=params)
 
-            # Save to cache
-            await set_cache(f"youtube_search:{track}", json.dumps(result["items"][0]["id"]), ttl=120)
+            video_id = result["items"][0]["id"]["videoId"]
 
-            return result["items"][0]["id"]
+            # Save to cache
+            await set_cache(f"youtube_search:{track}", video_id, ttl=60*60*24) # 1 day
+
+            return video_id
 
         try:
             tasks = [_search_track(track) for track in tracks]
@@ -242,7 +244,7 @@ class YouTubeService:
   
     # Add tracks to playlist
     @staticmethod
-    async def fill_playlist(playlist_id: str, resource_ids: list[str]):
+    async def fill_playlist(playlist_id: str, video_ids: list[str]):
         # YouTube API client
         credentials = Credentials.from_authorized_user_info(session["youtube_credentials"])
         access_token = credentials.token
@@ -256,7 +258,7 @@ class YouTubeService:
             "Content-Type": "application/json"
         }
 
-        async def _add_to_playlist(playlist_id, resource_id):
+        async def _add_to_playlist(playlist_id, video_id):
             MAX_RETRIES = 5
             retry_count = 0
             wait_time = 1 # seconds
@@ -266,7 +268,10 @@ class YouTubeService:
                     json = {
                         "snippet": {
                             "playlistId": playlist_id,
-                            "resourceId": resource_id
+                            "resourceId": {
+                                "kind": "youtube#video",
+                                "videoId": video_id
+                            }
                         }
                     }
                     return await post(url, params, headers, json)
@@ -280,7 +285,7 @@ class YouTubeService:
             return { "error": "Failed to add video to playlist" }
 
         try:
-            results = [await _add_to_playlist(playlist_id, resource_id) for resource_id in resource_ids]
+            results = [await _add_to_playlist(playlist_id, video_id) for video_id in video_ids]
         except aiohttp.ClientResponseError as e:
             logging.error(f"Error in YouTubeService.fill_playlist: {e.status} {e.message}")
             raise
