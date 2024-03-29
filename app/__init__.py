@@ -12,7 +12,11 @@ app = Flask(__name__)
 app.config.from_object(config["default"])
 
 # CORS config
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, resources={
+    r"/*": {
+        "origins": "*"
+    }
+})
 
 # Initialize Flask-Session
 Session(app)
