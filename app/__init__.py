@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_talisman import Talisman
 from flask_cors import CORS
 from flask_session import Session
 from app.config import config
@@ -10,6 +11,13 @@ import sys
 
 app = Flask(__name__)
 app.config.from_object(config["default"])
+
+# Talisman config
+talisman = Talisman(
+    app,
+    force_https=True,
+    force_https_permanent=True
+)
 
 # CORS config
 CORS(app, supports_credentials=True, resources={
