@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, redirect, request, session, jsonify, render_template_string, url_for
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
@@ -60,7 +61,7 @@ def youtube_callback():
     # Store credentials in Flask session
     session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
     
-    return render_template_string("<script> window.close(); </script>")
+    return { "success": True }
 
 # YouTube refresh token endpoint
 @oauth_bp.route("/youtube/refresh-token")
@@ -116,8 +117,8 @@ def spotify_login():
 @oauth_bp.route("/spotify/callback")
 def spotify_callback():
     if "error" in request.args:
-        # TODO: let frontend know of request.args["error"]
-        return render_template_string("<script> window.close(); </script>")
+        logging.error(f"Error in spotify_callback: {request.args["error"]}")
+        return { "error": "Failed to authorize Spotify. Please contact the developer" }, 500
     
     if "code" in request.args:
         req_body = {
@@ -138,7 +139,7 @@ def spotify_callback():
         "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
         }
 
-        return render_template_string("<script> window.close(); </script>")
+        return { "success": True }
     
     return jsonify({ "error": "Bad request to callback" }), 400
 
