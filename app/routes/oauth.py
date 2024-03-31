@@ -7,6 +7,7 @@ import os
 import requests
 import urllib.parse
 import datetime
+import json
 
 # Create /oauth blueprint
 oauth_bp = Blueprint("oauth", __name__)
@@ -54,7 +55,18 @@ def youtube_login():
 # YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
 def youtube_callback():
-    flow.fetch_token(authorization_response=request.url)
+    request_url = request.url
+
+    # Forcefully change http:// to https:// in request.url when the original protocol is https
+    # This might be because Cloudflare is acting as a reverse proxy and a tls terminator
+    # which causes requests to be made in http when they're originally https
+    # This fixes the oauthlib InsecureTransportError: (insecure_transport) OAuth 2 MUST utilize https
+    if ("http://" in request_url and
+        request.headers.get("X-Forwarded-Proto", "") == "https" and
+        json.loads(request.headers.get("Cf-Visitor", "{}")).get("scheme", "") == "https"):
+        request_url = request_url.replace("http://", "https://")
+    
+    flow.fetch_token(authorization_response=request_url)
     credentials = flow.credentials
 
     # Store credentials in Flask session
