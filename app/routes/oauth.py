@@ -7,6 +7,7 @@ import os
 import requests
 import urllib.parse
 import datetime
+import logging
 
 # Create /oauth blueprint
 oauth_bp = Blueprint("oauth", __name__)
@@ -54,6 +55,10 @@ def youtube_login():
 # YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
 def youtube_callback():
+    logging.debug(request.url)
+    logging.debug(request.scheme)
+    logging.debug(request.headers)
+
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
 
