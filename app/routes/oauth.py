@@ -59,7 +59,7 @@ def youtube_callback():
     logging.debug(request.scheme) # http
     logging.debug(request.headers)
     logging.debug(request.headers.get("X-Forwarded-Proto"))
-    logging.debug(request.headers.get("Cf-Visitor", {}).get("scheme"))
+    # logging.debug(request.headers.get("Cf-Visitor", {}).get("scheme")) # apparently Cf-Visitor is a string json
     logging.debug(request.environ)
 
 
