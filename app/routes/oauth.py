@@ -55,9 +55,13 @@ def youtube_login():
 # YouTube callback endpoint
 @oauth_bp.route("/youtube/callback")
 def youtube_callback():
-    logging.debug(request.url)
-    logging.debug(request.scheme)
+    logging.debug(request.url) # http
+    logging.debug(request.scheme) # http
     logging.debug(request.headers)
+    logging.debug(request.headers.get("X-Forwarded-Proto"))
+    logging.debug(request.headers.get("Cf-Visitor", {}).get("scheme"))
+    logging.debug(request.environ)
+
 
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
