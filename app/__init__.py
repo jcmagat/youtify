@@ -22,7 +22,7 @@ talisman = Talisman(
 # CORS config
 CORS(app, supports_credentials=True, resources={
     r"/*": {
-        "origins": "*"
+        "origins": ["https://localhost:3000"]
     }
 })
 
