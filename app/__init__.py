@@ -22,7 +22,7 @@ talisman = Talisman(
 # CORS config
 CORS(app, supports_credentials=True, resources={
     r"/*": {
-        "origins": ["https://localhost:3000"]
+        "origins": ["https://www.youtify.app", "https://api.youtify.app"]
     }
 })
 

@@ -8,7 +8,6 @@ import requests
 import urllib.parse
 import datetime
 import json
-import logging
 
 # Create /oauth blueprint
 oauth_bp = Blueprint("oauth", __name__)
@@ -72,8 +71,6 @@ def youtube_callback():
 
     # Store credentials in Flask session
     session["youtube_credentials"] = YouTubeService.format_credentials(credentials)
-
-    logging.debug(session["youtube_credentials"])
     
     return { "success": True }
 
@@ -151,8 +148,6 @@ def spotify_callback():
             "refresh_token": token_info["refresh_token"],
             "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
         }
-
-        logging.debug(session["spotify_credentials"])
 
         return { "success": True }
     
