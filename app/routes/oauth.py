@@ -132,11 +132,11 @@ def spotify_callback():
     
     if "code" in request.args:
         req_body = {
-        "code": request.args["code"],
-        "grant_type": "authorization_code",
-        "redirect_uri": SPOTIFY_REDIRECT_URI,
-        "client_id": SPOTIFY_CLIENT_ID,
-        "client_secret": SPOTIFY_CLIENT_SECRET
+            "code": request.args["code"],
+            "grant_type": "authorization_code",
+            "redirect_uri": SPOTIFY_REDIRECT_URI,
+            "client_id": SPOTIFY_CLIENT_ID,
+            "client_secret": SPOTIFY_CLIENT_SECRET
         }
 
         # Send POST request with req_body to Spotify's token endpoint
@@ -144,9 +144,9 @@ def spotify_callback():
 
         token_info = response.json()
         session["spotify_credentials"] = {
-        "access_token": token_info["access_token"],
-        "refresh_token": token_info["refresh_token"],
-        "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
+            "access_token": token_info["access_token"],
+            "refresh_token": token_info["refresh_token"],
+            "expires_at": datetime.datetime.now().timestamp() + token_info["expires_in"]
         }
 
         return { "success": True }
@@ -166,10 +166,10 @@ def spotify_refresh_token():
     
     if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
         req_body = {
-        "grant_type": "refresh_token",
-        "refresh_token": session["spotify_credentials"]["refresh_token"],
-        "client_id": SPOTIFY_CLIENT_ID,
-        "client_secret": SPOTIFY_CLIENT_SECRET
+            "grant_type": "refresh_token",
+            "refresh_token": session["spotify_credentials"]["refresh_token"],
+            "client_id": SPOTIFY_CLIENT_ID,
+            "client_secret": SPOTIFY_CLIENT_SECRET
         }
     
         response = requests.post(SPOTIFY_TOKEN_URL, data=req_body)
