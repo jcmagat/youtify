@@ -1,3 +1,4 @@
+import logging
 from flask import session
 from functools import wraps
 import os
@@ -13,6 +14,7 @@ SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 
 def authorize_spotify():
+    logging.debug("In authorize_spotify")
     if "spotify_credentials" not in session:
         return { "error": "Not authorized" }, 401
 
@@ -35,6 +37,8 @@ def authorize(service: str):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            logging.debug("In decorated_function")
+
             if service == "spotify":
                 authorize_spotify()
             elif service == "youtube":
