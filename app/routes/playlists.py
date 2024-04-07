@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, redirect, session, url_for, request
 from google.oauth2.credentials import Credentials
-from googleapiclient.errors import HttpError
+from app.utils import authorize
 from app.services import SpotifyService
 from app.services import YouTubeService
 import datetime
@@ -16,14 +16,8 @@ playlists_bp = Blueprint("playlists", __name__)
 
 # Get all Spotify playlists + tracks
 @playlists_bp.route("/spotify")
+@authorize("spotify")
 async def get_spotify_playlists():
-    if "spotify_credentials" not in session:
-        return { "error": "Not authorized" }, 401
-
-    if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
-        session["redirect_origin_url"] = url_for("playlists.get_spotify_playlists")
-        return redirect(url_for("oauth.spotify_refresh_token"))
-    
     try:
         playlists = await SpotifyService.get_playlists()
     
