@@ -1,5 +1,5 @@
 import logging
-from flask import session
+from flask import session, jsonify
 from functools import wraps
 import os
 import datetime
@@ -16,7 +16,8 @@ SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 def authorize_spotify():
     logging.debug("In authorize_spotify")
     if "spotify_credentials" not in session:
-        return { "error": "Not authorized" }, 401
+        logging.debug("In authorize_spotify: Not authorized")
+        return jsonify({ "error": "Not authorized" })
 
     if datetime.datetime.now().timestamp() > session["spotify_credentials"]["expires_at"]:
         req_body = {
@@ -42,9 +43,9 @@ def authorize(service: str):
             if service == "spotify":
                 authorize_spotify()
             elif service == "youtube":
-                return { "error", "Not implementde" }, 400
+                return jsonify({ "error", "Not implemented" })
             else:
-                return { "error", "Invalid service" }, 400
+                return jsonify({ "error", "Invalid service" })
             return f(*args, **kwargs)
         return decorated_function
     return decorator
